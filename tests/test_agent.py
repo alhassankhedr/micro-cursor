@@ -37,26 +37,28 @@ def test_agent_run_simulates_workspace_and_passes():
     """Test that agent runs in a temp workspace and eventually passes tests."""
     with tempfile.TemporaryDirectory() as tmpdir:
         agent = Agent()
-        result = agent.run("Create a calculator package with tests", tmpdir)
+        result = agent.run("Create a calculator with tests", tmpdir)
         
         # Agent should eventually succeed (tests pass after fix)
         assert result == 0
         
         # Verify files were created
         workspace = Path(tmpdir)
-        assert (workspace / "my_package" / "__init__.py").exists()
-        assert (workspace / "my_package" / "calculator.py").exists()
-        assert (workspace / "tests" / "test_calculator.py").exists()
+        assert (workspace / "calc.py").exists()
+        assert (workspace / "test_calc.py").exists()
+        
+        # Verify calc.py was fixed (should have a + b, not a - b)
+        calc_content = (workspace / "calc.py").read_text()
+        assert "return a + b" in calc_content
+        assert "return a - b" not in calc_content
         
         # Verify log file exists and contains success message
         log_file = workspace / ".agent_log.txt"
         assert log_file.exists()
         log_content = log_file.read_text()
         assert "Tests passed" in log_content or "✓" in log_content
-        
-        # Verify the test file was fixed (should have correct assertion)
-        test_content = (workspace / "tests" / "test_calculator.py").read_text()
-        assert "assert add(2, 3) == 5" in test_content
+        assert "Iteration 1" in log_content
+        assert "Iteration 2" in log_content
 
 
 def test_agent_run_handles_max_iterations():

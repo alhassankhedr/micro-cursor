@@ -57,9 +57,9 @@ class Agent:
             # Run tests
             self._log(tools, log_path, "Running tests...\n")
             # Set PYTHONPATH to workspace so pytest can find the package
-            # Run pytest on tests directory explicitly
+            # Run pytest with verbose output to see assertion details
             test_result = tools.run_cmd(
-                [sys.executable, "-m", "pytest", "-q", "--cache-clear", "tests/"],
+                [sys.executable, "-m", "pytest", "-v", "--cache-clear", "."],
                 cwd=".",
                 env={"PYTHONPATH": str(workspace.absolute())}
             )
@@ -70,9 +70,23 @@ class Agent:
                 self._log(tools, log_path, f"Success summary: Goal '{goal}' achieved.\n")
                 return 0
             else:
-                # Tests failed
-                self._log(tools, log_path, f"Tests failed:\n{test_result['stdout']}\n{test_result['stderr']}\n")
-                self._log(tools, log_path, f"Failing output summary: {test_result['stdout'][:200]}...\n\n")
+                # Tests failed - extract and log the failing assertion
+                output = test_result['stdout'] + test_result['stderr']
+                self._log(tools, log_path, f"Tests failed:\n{output}\n")
+                
+                # Extract assertion error if present
+                if "AssertionError:" in output:
+                    # Find the assertion line
+                    lines = output.split('\n')
+                    for i, line in enumerate(lines):
+                        if "AssertionError:" in line or "assert" in line.lower():
+                            # Log the assertion and a few lines of context
+                            context_start = max(0, i - 2)
+                            context_end = min(len(lines), i + 5)
+                            assertion_context = '\n'.join(lines[context_start:context_end])
+                            self._log(tools, log_path, f"Failing assertion:\n{assertion_context}\n\n")
+                            break
+                
                 # Continue to next iteration
         
         # Max iterations reached
@@ -83,8 +97,8 @@ class Agent:
         """Plan the next step to take.
         
         Day 1 simple implementation:
-        - If workspace has no files, create a tiny python package + a failing test
-        - If tests fail, apply a hardcoded fix for the known failure
+        - If workspace has no files, create calc.py with buggy add() and test_calc.py
+        - If calc.py has the bug (returns a-b), fix it to return a+b
         
         Args:
             tools: Tools instance for workspace operations
@@ -100,16 +114,16 @@ class Agent:
         files = [f for f in files if not f.startswith(".agent_log") and "__pycache__" not in f]
         
         if not files:
-            # No files exist - create initial package with failing test
-            return "create_initial_package"
+            # No files exist - create calc.py with buggy add() and test_calc.py
+            return "create_calc_demo"
         
-        # Check if we have the specific test file we know how to fix
-        if "tests/test_calculator.py" in files:
-            # We have the calculator test - check if it needs fixing
+        # Check if calc.py exists and has the bug
+        if "calc.py" in files:
             try:
-                content = tools.read_file("tests/test_calculator.py")
-                if "assert add(2, 3) == 6" in content:
-                    return "fix_failing_test"
+                content = tools.read_file("calc.py")
+                # Check if it has the bug (returns a - b instead of a + b)
+                if "return a - b" in content or "return a-b" in content:
+                    return "fix_calc_bug"
             except Exception:
                 pass
         
@@ -122,28 +136,31 @@ class Agent:
             tools: Tools instance for workspace operations
             action: Action description string
         """
-        if action == "create_initial_package":
-            # Create a tiny Python package with a failing test
-            tools.write_file("my_package/__init__.py", "# My package\n")
+        if action == "create_calc_demo":
+            # Create calc.py with intentionally buggy add function (returns a-b instead of a+b)
             tools.write_file(
-                "my_package/calculator.py",
-                "def add(a, b):\n    return a + b\n"
+                "calc.py",
+                "def add(a, b):\n"
+                "    return a - b  # BUG: should be a + b\n"
             )
-            # Create a test file with an intentional failure
+            # Create test file that expects correct addition
             tools.write_file(
-                "tests/test_calculator.py",
-                "from my_package.calculator import add\n\n"
+                "test_calc.py",
+                "from calc import add\n\n"
                 "def test_add():\n"
-                "    assert add(2, 3) == 6  # Intentional failure: should be 5\n"
+                "    assert add(2, 3) == 5\n"
+                "    assert add(10, 5) == 15\n"
+                "    assert add(-1, 1) == 0\n"
             )
         
-        elif action == "fix_failing_test":
-            # Apply hardcoded fix for the known failure
-            # The test expects 6 but should expect 5
-            content = tools.read_file("tests/test_calculator.py")
-            # Replace the incorrect assertion
-            fixed_content = content.replace("assert add(2, 3) == 6", "assert add(2, 3) == 5")
-            tools.write_file("tests/test_calculator.py", fixed_content)
+        elif action == "fix_calc_bug":
+            # Fix the bug in calc.py: change a - b to a + b
+            content = tools.read_file("calc.py")
+            # Replace the buggy return statement
+            fixed_content = content.replace("return a - b", "return a + b")
+            # Also handle if it's written as "a-b" without spaces
+            fixed_content = fixed_content.replace("return a-b", "return a + b")
+            tools.write_file("calc.py", fixed_content)
     
     def _clear_cache(self, tools: Tools) -> None:
         """Clear Python and pytest cache directories.
