@@ -112,6 +112,46 @@ python -m micro_cursor run --goal "Create a calculator with tests" --workspace "
 
 The `--workspace` argument is optional and defaults to `./work`. If the workspace directory doesn't exist, it will be created automatically.
 
+## Demo: Watch it Fail Then Fix
+
+Try the built-in demo to see the agent in action! If you run the agent with a goal about fixing tests in an empty workspace, it will automatically create a broken calculator module and then fix it.
+
+```bash
+python -m micro_cursor run --goal "Fix the failing tests in this workspace." --workspace "./work"
+```
+
+**What happens:**
+1. Agent detects empty workspace and creates `calc.py` with a buggy `add()` function (returns `a - b` instead of `a + b`)
+2. Agent creates `test_calc.py` with tests that expect correct addition
+3. Agent runs pytest - tests fail with assertion error
+4. Agent uses LLM to analyze the failure and fix the bug
+5. Agent runs pytest again - tests pass! ✓
+
+**Example output:**
+```
+Goal: Fix the failing tests in this workspace.
+Workspace: /path/to/work
+
+=== Iteration 1 ===
+Calling LLM...
+LLM requested 2 tool call(s)
+Tool call 1/2: read_file({'path': 'calc.py'})
+Tool call 2/2: read_file({'path': 'test_calc.py'})
+Running tests...
+Tests failed:
+test_calc.py::test_add FAILED
+    assert -1 == 5
+     +  where -1 = add(2, 3)
+
+=== Iteration 2 ===
+Calling LLM...
+LLM requested 1 tool call(s)
+Tool call 1/1: write_file({'path': 'calc.py', 'content': 'def add(a, b):\n    return a + b\n'})
+Running tests...
+
+✓ Tests passed after 2 iteration(s)!
+```
+
 ## Demo
 
 Here's a complete example run:

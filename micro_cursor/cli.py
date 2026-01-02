@@ -44,12 +44,15 @@ def run_command(goal: str, workspace_path: str) -> int:
     if not workspace.exists():
         workspace.mkdir(parents=True, exist_ok=True)
 
-    # Print goal and workspace path
+    # Create agent to get LLM info
+    agent = Agent()
+
+    # Print goal, workspace path, and LLM info
     print(f"Goal: {goal}")
     print(f"Workspace: {workspace.absolute()}")
+    print(f"LLM: {agent.llm_info}")
 
     # Call agent.run() and return its exit code
-    agent = Agent()
     return agent.run(goal, str(workspace.absolute()))
 
 

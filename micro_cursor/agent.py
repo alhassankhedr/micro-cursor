@@ -6,7 +6,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from micro_cursor.llm import ToolCall, get_llm
+from micro_cursor.llm import GeminiLLM, OpenAILLM, ToolCall, get_llm
 from micro_cursor.tool_schema import get_tool_schemas
 from micro_cursor.tools import Tools
 
@@ -22,6 +22,22 @@ class Agent:
         """Initialize the agent."""
         self.llm = get_llm()
         self.tool_schemas = get_tool_schemas()
+        self.llm_info = self._get_llm_info()
+
+    def _get_llm_info(self) -> str:
+        """Get information about the LLM provider and model.
+
+        Returns:
+            String describing the LLM provider and model
+        """
+        if isinstance(self.llm, OpenAILLM):
+            model = self.llm.model
+            return f"OpenAI ({model})"
+        elif isinstance(self.llm, GeminiLLM):
+            model = self.llm.model
+            return f"Gemini ({model})"
+        else:
+            return f"Unknown LLM ({type(self.llm).__name__})"
 
     def run(self, goal: str, workspace_path: str) -> int:
         """Run the agent with a goal and workspace path.
@@ -40,11 +56,19 @@ class Agent:
         # Create tools instance
         tools = Tools(str(workspace.absolute()))
 
+        # Check if workspace is empty and seed demo if needed
+        self._seed_demo_if_needed(tools, goal)
+
         # Create run log file
         log_path = LOG_FILE
-        tools.write_file(
-            log_path, f"Agent run started\nGoal: {goal}\nWorkspace: {workspace.absolute()}\n\n"
+        initial_log = (
+            f"Agent run started\n"
+            f"Goal: {goal}\n"
+            f"Workspace: {workspace.absolute()}\n"
+            f"LLM: {self.llm_info}\n\n"
         )
+        print(initial_log, end="")
+        tools.write_file(log_path, initial_log)
 
         # Build system prompt
         system_prompt = self._build_system_prompt()
@@ -131,7 +155,7 @@ class Agent:
             # Always run pytest at end of iteration
             self._log(tools, log_path, "Running tests...\n")
             test_result = tools.run_cmd(
-                [sys.executable, "-m", "pytest", "-q", "--cache-clear", "."],
+                [sys.executable, "-m", "pytest", "-v", "--cache-clear", "."],
                 cwd=".",
                 env={"PYTHONPATH": str(workspace.absolute())},
             )
@@ -141,7 +165,13 @@ class Agent:
 
             if test_result["returncode"] == 0:
                 # Tests passed!
-                self._log(tools, log_path, f"\n✓ Tests passed after {iteration} iteration(s)!\n")
+                # Parse and display SUCCESS messages similar to pytest FAILURES format
+                success_lines = self._format_test_success(test_output)
+                if success_lines:
+                    self._log(tools, log_path, "\n" + success_lines)
+                else:
+                    self._log(tools, log_path, "\n")
+                self._log(tools, log_path, f"✓ Tests passed after {iteration} iteration(s)!\n")
                 self._log(tools, log_path, f"Success summary: Goal '{goal}' achieved.\n")
                 return 0
             else:
@@ -286,6 +316,41 @@ Your goal is to help achieve the user's coding goal by using these tools effecti
         else:
             raise ValueError(f"Unknown tool: {name}")
 
+    def _seed_demo_if_needed(self, tools: Tools, goal: str) -> None:
+        """Seed workspace with demo files if empty and goal matches demo pattern.
+
+        Args:
+            tools: Tools instance for workspace operations
+            goal: The goal string
+        """
+        # Check if workspace is empty (excluding log file)
+        files = tools.list_files()
+        files = [
+            f
+            for f in files
+            if not f.startswith(".agent_log")
+            and "__pycache__" not in f
+            and ".pytest_cache" not in f
+        ]
+
+        # If workspace is empty and goal mentions fixing tests, seed demo
+        if not files and (
+            "fix" in goal.lower() or "test" in goal.lower() or "failing" in goal.lower()
+        ):
+            # Create buggy calc.py
+            tools.write_file(
+                "calc.py", "def add(a, b):\n    return a - b  # BUG: should be a + b\n"
+            )
+            # Create test file that expects correct addition
+            tools.write_file(
+                "test_calc.py",
+                "from calc import add\n\n"
+                "def test_add():\n"
+                "    assert add(2, 3) == 5\n"
+                "    assert add(10, 5) == 15\n"
+                "    assert add(-1, 1) == 0\n",
+            )
+
     def _clear_cache(self, tools: Tools) -> None:
         """Clear Python and pytest cache directories.
 
@@ -304,13 +369,70 @@ Your goal is to help achieve the user's coding goal by using these tools effecti
             if pycache.is_dir():
                 shutil.rmtree(pycache)
 
+    def _format_test_success(self, test_output: str) -> str:
+        """Format test success output similar to pytest FAILURES format.
+
+        Args:
+            test_output: Raw pytest output
+
+        Returns:
+            Formatted success message string
+        """
+        lines = test_output.split("\n")
+        success_lines = []
+        test_names = []
+
+        # Extract test names that passed
+        for line in lines:
+            # Look for test names that passed (pytest format: "test_file.py::test_name PASSED")
+            if " PASSED" in line or ("::" in line and "passed" in line.lower()):
+                # Extract test name from pytest output
+                test_name = line.strip()
+                if "::" in test_name:
+                    # Format: test_file.py::test_name PASSED
+                    test_names.append(test_name)
+                elif "PASSED" in test_name:
+                    test_names.append(test_name)
+
+        # Format similar to pytest FAILURES
+        if test_names:
+            success_lines.append(
+                "================================ SUCCESS ================================"
+            )
+            for test_name in test_names:
+                success_lines.append(f"SUCCESS {test_name}")
+            # Add summary if available
+            for line in lines:
+                if (
+                    "passed" in line.lower()
+                    and "in" in line.lower()
+                    and not any(t in line for t in test_names)
+                ):
+                    success_lines.append(f"    {line.strip()}")
+            success_lines.append("")
+        elif "passed" in test_output.lower():
+            # Fallback: just show summary
+            success_lines.append(
+                "================================ SUCCESS ================================"
+            )
+            for line in lines:
+                if "passed" in line.lower():
+                    success_lines.append(f"    {line.strip()}")
+            success_lines.append("")
+
+        return "\n".join(success_lines) if success_lines else ""
+
     def _log(self, tools: Tools, log_path: str, message: str) -> None:
-        """Append a message to the log file.
+        """Append a message to the log file and print to terminal.
 
         Args:
             tools: Tools instance for workspace operations
             log_path: Path to log file
             message: Message to append
         """
+        # Print to terminal (without trailing newline if message already has one)
+        print(message, end="")
+
+        # Also write to log file
         current_content = tools.read_file(log_path)
         tools.write_file(log_path, current_content + message)
