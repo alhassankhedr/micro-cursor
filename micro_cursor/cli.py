@@ -1,7 +1,8 @@
 """Command-line interface for micro-cursor."""
 
+from __future__ import annotations
+
 import argparse
-import os
 import sys
 from pathlib import Path
 
@@ -13,29 +14,19 @@ def main():
     parser = argparse.ArgumentParser(
         description="micro-cursor - A Python project for micro-cursor functionality"
     )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version="%(prog)s 0.1.0"
-    )
-    
+    parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
+
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
-    
+
     # Run command
     run_parser = subparsers.add_parser("run", help="Run the agent with a goal")
+    run_parser.add_argument("--goal", required=True, help="The goal to achieve")
     run_parser.add_argument(
-        "--goal",
-        required=True,
-        help="The goal to achieve"
+        "--workspace", default="./work", help="Path to the workspace directory (default: ./work)"
     )
-    run_parser.add_argument(
-        "--workspace",
-        default="./work",
-        help="Path to the workspace directory (default: ./work)"
-    )
-    
+
     args = parser.parse_args()
-    
+
     if args.command == "run":
         return run_command(args.goal, args.workspace)
     elif args.command is None:
@@ -52,11 +43,11 @@ def run_command(goal: str, workspace_path: str) -> int:
     workspace = Path(workspace_path)
     if not workspace.exists():
         workspace.mkdir(parents=True, exist_ok=True)
-    
+
     # Print goal and workspace path
     print(f"Goal: {goal}")
     print(f"Workspace: {workspace.absolute()}")
-    
+
     # Call agent.run() and return its exit code
     agent = Agent()
     return agent.run(goal, str(workspace.absolute()))
@@ -64,4 +55,3 @@ def run_command(goal: str, workspace_path: str) -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

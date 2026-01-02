@@ -1,6 +1,5 @@
 """Tests for micro_cursor.tools module."""
 
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -27,13 +26,13 @@ def test_write_file_then_read_file_roundtrip(tools, temp_workspace):
     """Test that write_file followed by read_file works correctly."""
     test_path = "test_file.txt"
     test_content = "Hello, World!\nThis is a test file."
-    
+
     # Write file
     tools.write_file(test_path, test_content)
-    
+
     # Read file
     content = tools.read_file(test_path)
-    
+
     assert content == test_content
     assert Path(temp_workspace) / test_path == Path(temp_workspace) / test_path
 
@@ -44,25 +43,25 @@ def test_list_files_excludes_pycache(tools, temp_workspace):
     tools.write_file("file1.txt", "content1")
     tools.write_file("file2.py", "content2")
     tools.write_file("subdir/file3.txt", "content3")
-    
+
     # Create __pycache__ directory and file
     pycache_dir = Path(temp_workspace) / "__pycache__"
     pycache_dir.mkdir()
     (pycache_dir / "file.cpython-313.pyc").touch()
-    
+
     # Create .venv directory
     venv_dir = Path(temp_workspace) / ".venv"
     venv_dir.mkdir()
     (venv_dir / "file.txt").touch()
-    
+
     # Create .git directory
     git_dir = Path(temp_workspace) / ".git"
     git_dir.mkdir()
     (git_dir / "config").touch()
-    
+
     # List files
     files = tools.list_files()
-    
+
     # Should include regular files but not __pycache__, .venv, or .git
     assert "file1.txt" in files
     assert "file2.py" in files
@@ -77,10 +76,10 @@ def test_list_files_with_pattern(tools):
     tools.write_file("file1.txt", "content1")
     tools.write_file("file2.py", "content2")
     tools.write_file("file3.txt", "content3")
-    
+
     # List only .txt files
     txt_files = tools.list_files(pattern="*.txt")
-    
+
     assert "file1.txt" in txt_files
     assert "file3.txt" in txt_files
     assert "file2.py" not in txt_files
@@ -88,11 +87,8 @@ def test_list_files_with_pattern(tools):
 
 def test_run_cmd_simple_python_command(tools):
     """Test that run_cmd can run a simple python -c command successfully."""
-    result = tools.run_cmd(
-        [sys.executable, "-c", "print('Hello from Python')"],
-        cwd="."
-    )
-    
+    result = tools.run_cmd([sys.executable, "-c", "print('Hello from Python')"], cwd=".")
+
     assert result["returncode"] == 0
     assert "Hello from Python" in result["stdout"]
     assert result["stderr"] == ""
@@ -100,11 +96,8 @@ def test_run_cmd_simple_python_command(tools):
 
 def test_run_cmd_with_error(tools):
     """Test run_cmd with a command that fails."""
-    result = tools.run_cmd(
-        [sys.executable, "-c", "import sys; sys.exit(1)"],
-        cwd="."
-    )
-    
+    result = tools.run_cmd([sys.executable, "-c", "import sys; sys.exit(1)"], cwd=".")
+
     assert result["returncode"] == 1
 
 
@@ -136,7 +129,7 @@ def test_run_cmd_outside_workspace_raises_error(tools):
 def test_write_file_creates_parent_directories(tools):
     """Test that write_file creates parent directories if they don't exist."""
     tools.write_file("deep/nested/path/file.txt", "content")
-    
+
     content = tools.read_file("deep/nested/path/file.txt")
     assert content == "content"
 
@@ -146,10 +139,9 @@ def test_list_files_in_subdirectory(tools):
     tools.write_file("root_file.txt", "content1")
     tools.write_file("subdir/file1.txt", "content2")
     tools.write_file("subdir/file2.txt", "content3")
-    
+
     files = tools.list_files(root="subdir")
     # Files are returned relative to workspace, not the subdirectory root
     assert "subdir/file1.txt" in files
     assert "subdir/file2.txt" in files
     assert "root_file.txt" not in files
-
