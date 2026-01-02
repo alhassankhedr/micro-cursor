@@ -78,6 +78,32 @@ source .venv/bin/activate  # On macOS/Linux
 pip install -e ".[dev]"
 ```
 
+### LLM Configuration
+
+micro-cursor supports multiple LLM providers. Configure your preferred provider using environment variables:
+
+#### OpenAI (Default)
+
+```bash
+export LLM_PROVIDER=openai
+export OPENAI_API_KEY=your-api-key-here
+export OPENAI_MODEL=gpt-4o-mini  # Optional, defaults to gpt-4o-mini
+```
+
+Get your API key at: https://platform.openai.com/api-keys
+
+#### Google Gemini
+
+```bash
+export LLM_PROVIDER=gemini
+export GEMINI_API_KEY=your-api-key-here
+export GEMINI_MODEL=gemini-2.0-flash-exp  # Optional, defaults to gemini-2.0-flash-exp
+```
+
+Get your API key at: https://aistudio.google.com/apikey
+
+**Note:** The agent will only use the LLM when making planning decisions. If no API keys are set, the agent will use hardcoded logic (Day 1 mode).
+
 ### Run the Agent
 
 ```bash
