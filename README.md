@@ -20,9 +20,9 @@ source .venv/bin/activate  # On macOS/Linux
 .venv\Scripts\activate  # On Windows
 ```
 
-3. Install dependencies:
+3. Install the package in editable mode with development dependencies:
 ```bash
-pip install -r requirements.txt
+pip install -e ".[dev]"
 ```
 
 ## Usage
@@ -43,7 +43,19 @@ The `--workspace` argument is optional and defaults to `./work`. If the workspac
 
 Run tests:
 ```bash
-python -m pytest tests/
+# Activate virtual environment first
+source .venv/bin/activate  # On macOS/Linux
+# or
+.venv\Scripts\activate  # On Windows
+
+# Run all tests
+pytest tests/ -v
+
+# Run specific test file
+pytest tests/test_tools.py -v
+
+# Run a specific test
+pytest tests/test_tools.py::test_write_file_then_read_file_roundtrip -v
 ```
 
 ## CI/CD

@@ -25,11 +25,11 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -e ".[dev]"
 
     - name: Run tests
       run: |
-        python -m pytest tests/ -v
+        pytest tests/ -v
 
     - name: Test CLI help
       run: |
