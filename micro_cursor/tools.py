@@ -111,13 +111,14 @@ class Tools:
         
         return sorted(files)
     
-    def run_cmd(self, cmd: List[str], cwd: str = ".", timeout_sec: int = 60) -> Dict[str, int | str]:
+    def run_cmd(self, cmd: List[str], cwd: str = ".", timeout_sec: int = 60, env: Dict[str, str] | None = None) -> Dict[str, int | str]:
         """Run a command and capture stdout/stderr.
         
         Args:
             cmd: Command to run as a list of strings
             cwd: Working directory (relative to workspace or absolute within workspace)
             timeout_sec: Timeout in seconds (default: 60)
+            env: Optional environment variables dict (default: None, uses current env)
             
         Returns:
             Dictionary with keys: returncode (int), stdout (str), stderr (str).
@@ -128,13 +129,21 @@ class Tools:
         """
         cwd_path = self._validate_path(cwd)
         
+        # Prepare environment
+        if env is None:
+            run_env = None
+        else:
+            run_env = os.environ.copy()
+            run_env.update(env)
+        
         try:
             result = subprocess.run(
                 cmd,
                 cwd=str(cwd_path),
                 capture_output=True,
                 text=True,
-                timeout=timeout_sec
+                timeout=timeout_sec,
+                env=run_env
             )
             return {
                 "returncode": result.returncode,
