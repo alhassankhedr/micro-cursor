@@ -7,6 +7,49 @@ import subprocess
 from pathlib import Path
 
 
+class DangerousCommandError(Exception):
+    """Exception raised when a dangerous command is detected."""
+
+    def __init__(self, command: str, reason: str = "dangerous_command_detected"):
+        """Initialize the exception.
+
+        Args:
+            command: The full command string that was flagged
+            reason: Reason for blocking the command
+        """
+        self.command = command
+        self.reason = reason
+        super().__init__(f"Dangerous command detected: {command}")
+
+
+# Dangerous command patterns that require user confirmation
+DANGEROUS_PATTERNS = [
+    "rm -rf",
+    "rm -r /",
+    "rm -rf /",
+    "sudo",
+    "mkfs",
+    "dd if=",
+    "shutdown",
+    "reboot",
+    ":(){:|:&};:",  # Fork bomb
+    "chmod -R 777 /",
+    "chown -R",
+    "wipefs",
+    "mount /",
+    "umount /",
+    "format",
+    "fdisk",
+    "parted",
+    "mkfs.ext",
+    "mkfs.ntfs",
+    "mkfs.vfat",
+    "dd of=",
+    "> /dev/sd",
+    "> /dev/hd",
+]
+
+
 class Tools:
     """Tools class for micro-cursor functionality with workspace-constrained operations."""
 
@@ -114,12 +157,30 @@ class Tools:
 
         return sorted(files)
 
+    def _check_dangerous_command(self, cmd: list[str]) -> None:
+        """Check if a command matches any dangerous pattern.
+
+        Args:
+            cmd: Command to check as a list of strings
+
+        Raises:
+            DangerousCommandError: If a dangerous pattern is detected
+        """
+        # Convert command list to string for inspection
+        cmd_str = " ".join(cmd).lower()
+
+        # Check against dangerous patterns
+        for pattern in DANGEROUS_PATTERNS:
+            if pattern.lower() in cmd_str:
+                raise DangerousCommandError(" ".join(cmd), "dangerous_command_detected")
+
     def run_cmd(
         self,
         cmd: list[str],
         cwd: str = ".",
         timeout_sec: int = 60,
         env: dict[str, str] | None = None,
+        skip_safety_check: bool = False,
     ) -> dict[str, int | str]:
         """Run a command and capture stdout/stderr.
 
@@ -128,6 +189,7 @@ class Tools:
             cwd: Working directory (relative to workspace or absolute within workspace)
             timeout_sec: Timeout in seconds (default: 60)
             env: Optional environment variables dict (default: None, uses current env)
+            skip_safety_check: If True, skip dangerous command check (for internal use only)
 
         Returns:
             Dictionary with keys: returncode (int), stdout (str), stderr (str).
@@ -135,7 +197,12 @@ class Tools:
 
         Raises:
             ValueError: If cwd is outside workspace
+            DangerousCommandError: If a dangerous command is detected and not confirmed
         """
+        # Check for dangerous commands (unless explicitly skipped)
+        if not skip_safety_check:
+            self._check_dangerous_command(cmd)
+
         cwd_path = self._validate_path(cwd)
 
         # Prepare environment

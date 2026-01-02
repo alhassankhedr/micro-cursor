@@ -8,7 +8,7 @@ from pathlib import Path
 
 from micro_cursor.llm import GeminiLLM, OpenAILLM, ToolCall, get_llm
 from micro_cursor.tool_schema import get_tool_schemas
-from micro_cursor.tools import Tools
+from micro_cursor.tools import DangerousCommandError, Tools
 
 MAX_ITERS = 8
 MAX_TOOL_CALLS_PER_ITER = 6
@@ -153,11 +153,13 @@ class Agent:
             self._clear_cache(tools)
 
             # Always run pytest at end of iteration
+            # Skip safety check for pytest as it's a safe testing command
             self._log(tools, log_path, "Running tests...\n")
             test_result = tools.run_cmd(
                 [sys.executable, "-m", "pytest", "-v", "--cache-clear", "."],
                 cwd=".",
                 env={"PYTHONPATH": str(workspace.absolute())},
+                skip_safety_check=True,
             )
 
             test_output = test_result["stdout"] + test_result["stderr"]
@@ -240,9 +242,29 @@ Your goal is to help achieve the user's coding goal by using these tools effecti
 
             try:
                 # Validate and execute tool call
-                observation = self._execute_single_tool(tools, tool_call)
+                observation = self._execute_single_tool(tools, tool_call, log_path)
                 observations.append(observation)
                 self._log(tools, log_path, f"  Result: {observation[:200]}...\n")
+            except DangerousCommandError as e:
+                # Handle dangerous command with user confirmation
+                confirmed = self._handle_dangerous_command(tools, log_path, e)
+                if confirmed:
+                    # User confirmed - execute with safety check skipped
+                    try:
+                        observation = self._execute_single_tool(
+                            tools, tool_call, log_path, skip_safety_check=True
+                        )
+                        observations.append(observation)
+                        self._log(tools, log_path, f"  Result: {observation[:200]}...\n")
+                    except Exception as exec_error:
+                        error_msg = f"Error executing confirmed dangerous command: {exec_error}"
+                        observations.append(error_msg)
+                        self._log(tools, log_path, f"  Error: {error_msg}\n")
+                else:
+                    # User refused - skip command
+                    error_msg = "Command was refused by user"
+                    observations.append(error_msg)
+                    self._log(tools, log_path, f"  Skipped: {error_msg}\n")
             except Exception as e:
                 error_msg = f"Error executing {tool_call.name}: {e}"
                 observations.append(error_msg)
@@ -250,12 +272,72 @@ Your goal is to help achieve the user's coding goal by using these tools effecti
 
         return observations
 
-    def _execute_single_tool(self, tools: Tools, tool_call: ToolCall) -> str:
+    def _handle_dangerous_command(
+        self, tools: Tools, log_path: str, error: DangerousCommandError
+    ) -> bool:
+        """Handle dangerous command detection with user confirmation.
+
+        Args:
+            tools: Tools instance for workspace operations
+            log_path: Path to log file
+            error: DangerousCommandError with command details
+
+        Returns:
+            True if user confirmed, False if refused or non-interactive
+        """
+        cmd_str = error.command
+        self._log(tools, log_path, f"⚠️  Dangerous command detected: {cmd_str}\n")
+
+        # Check if running in non-interactive mode
+        if not sys.stdin.isatty():
+            self._log(
+                tools,
+                log_path,
+                "Refused dangerous command due to non-interactive mode\n",
+            )
+            print("⚠️  Dangerous command detected but cannot confirm (non-interactive mode)")
+            print(f"   Command: {cmd_str}")
+            print("   Command was automatically refused.\n")
+            return False
+
+        # Prompt user for confirmation
+        warning_msg = (
+            f"\n⚠️  Dangerous command detected:\n"
+            f"   {cmd_str}\n\n"
+            f"This command can cause permanent data loss or system damage.\n"
+            f"Do you want to proceed? (yes/no): "
+        )
+        print(warning_msg, end="", flush=True)
+        self._log(tools, log_path, warning_msg)
+
+        try:
+            user_input = input().strip().lower()
+            self._log(tools, log_path, f"User response: {user_input}\n")
+
+            if user_input == "yes":
+                self._log(tools, log_path, "User confirmed dangerous command execution\n")
+                print("✓ Command execution confirmed by user\n")
+                return True
+            else:
+                self._log(tools, log_path, "User refused dangerous command execution\n")
+                print("✗ Command execution refused\n")
+                return False
+        except (EOFError, KeyboardInterrupt):
+            # Handle Ctrl+C or EOF
+            self._log(tools, log_path, "User interrupted confirmation prompt\n")
+            print("\n✗ Command execution refused (interrupted)\n")
+            return False
+
+    def _execute_single_tool(
+        self, tools: Tools, tool_call: ToolCall, log_path: str, skip_safety_check: bool = False
+    ) -> str:
         """Execute a single tool call.
 
         Args:
             tools: Tools instance for workspace operations
             tool_call: ToolCall object
+            log_path: Path to log file
+            skip_safety_check: If True, skip dangerous command check (for confirmed commands)
 
         Returns:
             Observation string
@@ -310,7 +392,9 @@ Your goal is to help achieve the user's coding goal by using these tools effecti
                 raise ValueError(
                     f"run_cmd: 'timeout_sec' must be an integer, got {type(timeout_sec)}"
                 )
-            result = tools.run_cmd(cmd, cwd=cwd, timeout_sec=timeout_sec)
+            result = tools.run_cmd(
+                cmd, cwd=cwd, timeout_sec=timeout_sec, skip_safety_check=skip_safety_check
+            )
             return f"Command returned {result['returncode']}:\nstdout: {result['stdout']}\nstderr: {result['stderr']}"
 
         else:
