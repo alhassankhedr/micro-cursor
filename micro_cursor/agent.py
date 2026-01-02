@@ -417,10 +417,17 @@ Your goal is to help achieve the user's coding goal by using these tools effecti
             and ".pytest_cache" not in f
         ]
 
-        # If workspace is empty and goal mentions fixing tests, seed demo
-        if not files and (
-            "fix" in goal.lower() or "test" in goal.lower() or "failing" in goal.lower()
-        ):
+        # If workspace is empty and goal explicitly mentions fixing FAILING tests, seed demo
+        # Only trigger for very specific phrases to avoid interfering with normal goals
+        goal_lower = goal.lower()
+        is_fix_failing_tests_goal = (
+            ("fix" in goal_lower and "fail" in goal_lower)
+            or ("fix" in goal_lower and "test" in goal_lower and "fail" in goal_lower)
+            or goal_lower.startswith("fix the failing")
+            or "fix failing tests" in goal_lower
+        )
+
+        if not files and is_fix_failing_tests_goal:
             # Create buggy calc.py
             tools.write_file(
                 "calc.py", "def add(a, b):\n    return a - b  # BUG: should be a + b\n"
