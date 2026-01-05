@@ -57,7 +57,7 @@ The agent uses a **ReAct (Reasoning + Acting) loop**:
 
 ### Prerequisites
 
-- Python 3.13+
+- Python 3.12+
 
 ### Installation
 
