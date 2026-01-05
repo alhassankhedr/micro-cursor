@@ -1,3 +1,5 @@
+![micro-cursor](micro_cursor_photo.png)
+
 # micro-cursor
 
 A mini Cursor-style agent that uses a ReAct loop to iteratively write code, run tests, and fix bugs until tests pass.
