@@ -147,10 +147,11 @@ class Tools:
                 # Check if any part of the path matches exclude patterns
                 parts = file_path.parts
                 if not any(part in exclude_patterns for part in parts):
-                    # Return path relative to workspace
+                    # Return path relative to workspace (normalized to use forward slashes)
                     try:
                         rel_path = file_path.relative_to(self.workspace_path)
-                        files.append(str(rel_path))
+                        # Use as_posix() to ensure forward slashes on all platforms
+                        files.append(rel_path.as_posix())
                     except ValueError:
                         # Should not happen due to validation, but handle gracefully
                         continue

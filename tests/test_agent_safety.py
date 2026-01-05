@@ -32,7 +32,7 @@ def test_agent_detects_dangerous_command_and_prompts():
 
                 # Command should be refused
                 log_file = workspace / ".agent_log.txt"
-                log_content = log_file.read_text()
+                log_content = log_file.read_text(encoding="utf-8")
                 assert "Dangerous command detected" in log_content
                 assert "User refused" in log_content or "refused" in log_content.lower()
 
@@ -65,7 +65,7 @@ def test_agent_confirms_dangerous_command_with_yes():
 
                     # Command should be confirmed and executed
                     log_file = workspace / ".agent_log.txt"
-                    log_content = log_file.read_text()
+                    log_content = log_file.read_text(encoding="utf-8")
                     assert "Dangerous command detected" in log_content
                     assert "User confirmed" in log_content or "confirmed" in log_content.lower()
 
@@ -94,7 +94,7 @@ def test_agent_refuses_dangerous_command_in_non_interactive_mode():
 
                 # Command should be automatically refused
                 log_file = workspace / ".agent_log.txt"
-                log_content = log_file.read_text()
+                log_content = log_file.read_text(encoding="utf-8")
                 assert "non-interactive mode" in log_content.lower()
                 assert "refused" in log_content.lower() or "Refused" in log_content
 
@@ -122,7 +122,7 @@ def test_agent_logs_dangerous_command_detection():
                     agent.run("test goal", str(workspace))
 
                     log_file = workspace / ".agent_log.txt"
-                    log_content = log_file.read_text()
+                    log_content = log_file.read_text(encoding="utf-8")
 
                     # Verify logging
                     assert "Dangerous command detected" in log_content
@@ -155,5 +155,5 @@ def test_agent_handles_interrupted_confirmation():
 
                     # Command should be refused
                     log_file = workspace / ".agent_log.txt"
-                    log_content = log_file.read_text()
+                    log_content = log_file.read_text(encoding="utf-8")
                     assert "interrupted" in log_content.lower() or "refused" in log_content.lower()
