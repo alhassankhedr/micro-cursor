@@ -8,26 +8,26 @@ A mini Cursor-style agent that uses a ReAct loop to iteratively write code, run 
 
 **micro-cursor** is a lightweight Python agent that implements a simplified version of the Cursor IDE's autonomous coding loop. Given a goal, it:
 
-1. Plans the next action
-2. Executes the action (writes/modifies code)
-3. Runs tests
+1. Uses an LLM (OpenAI or Gemini) to plan the next actions
+2. Executes actions using tools (read/write files, run commands)
+3. Runs tests to verify correctness
 4. If tests fail, analyzes the error and tries again
 5. Repeats until tests pass or max iterations reached
 
-It's designed as a proof-of-concept for autonomous code generation and debugging, demonstrating how an agent can iteratively improve code quality through test-driven feedback.
+It's designed as a proof-of-concept for autonomous code generation and debugging, demonstrating how an agent can iteratively improve code quality through test-driven feedback using LLM-powered reasoning and tool execution.
 
 ## How it works
 
-The agent uses a **ReAct (Reasoning + Acting) loop**:
+The agent uses a **ReAct (Reasoning + Acting) loop** powered by LLMs:
 
 ```
 ┌─────────────────┐
-│  Plan Action    │  ← Analyze current state, decide what to do
-└────────┬────────┘
+│  LLM Plans      │  ← LLM analyzes workspace state, goal, and test results
+└────────┬────────┘   Uses function calling to decide which tools to use
          │
          ▼
 ┌─────────────────┐
-│ Execute Action  │  ← Write/modify code files
+│ Execute Tools   │  ← Calls tools: read_file, write_file, list_files, run_cmd
 └────────┬────────┘
          │
          ▼
@@ -37,8 +37,19 @@ The agent uses a **ReAct (Reasoning + Acting) loop**:
          │
          ├─ Tests Pass? → ✓ Success!
          │
-         └─ Tests Fail? → Analyze error → Loop back
+         └─ Tests Fail? → LLM analyzes error → Loop back
 ```
+
+### Available Tools
+
+The agent has access to four workspace-constrained tools:
+
+- **`read_file(path)`** - Read files from the workspace
+- **`write_file(path, content)`** - Write or modify files in the workspace
+- **`list_files(root, pattern)`** - List files matching a pattern
+- **`run_cmd(cmd, cwd, timeout_sec)`** - Run commands (with safety checks for dangerous operations)
+
+All operations are automatically constrained to the workspace directory for safety.
 
 ## Quickstart
 
@@ -69,27 +80,42 @@ pip install -e ".[dev]"
 
 ### LLM Configuration
 
-micro-cursor supports multiple LLM providers. Configure your preferred provider using environment variables:
+micro-cursor supports multiple LLM providers. Configure your preferred provider using environment variables or a `.env` file:
 
-#### OpenAI (Default)
+#### Using Environment Variables
 
+**OpenAI (Default):**
 ```bash
 export LLM_PROVIDER=openai
 export OPENAI_API_KEY=your-api-key-here
 export OPENAI_MODEL=gpt-4o-mini  # Optional, defaults to gpt-4o-mini
 ```
 
-Get your API key at: https://platform.openai.com/api-keys
-
-#### Google Gemini
-
+**Google Gemini:**
 ```bash
 export LLM_PROVIDER=gemini
 export GEMINI_API_KEY=your-api-key-here
 export GEMINI_MODEL=gemini-2.0-flash-exp  # Optional, defaults to gemini-2.0-flash-exp
 ```
 
-Get your API key at: https://aistudio.google.com/apikey
+#### Using .env File
+
+1. Copy the example file:
+   ```bash
+   cp .env.example .env
+   ```
+
+2. Edit `.env` with your API keys:
+   ```bash
+   LLM_PROVIDER=openai
+   OPENAI_API_KEY=your-actual-api-key-here
+   ```
+
+Get API keys:
+- OpenAI: https://platform.openai.com/api-keys
+- Gemini: https://aistudio.google.com/apikey
+
+**Note:** The agent requires an LLM API key to function. It uses the LLM for planning actions and generating code fixes.
 
 ### Run the Agent
 
@@ -108,11 +134,14 @@ python -m micro_cursor run --goal "Fix the failing tests in this workspace." --w
 ```
 
 **What happens:**
-1. Agent detects empty workspace and creates `calc.py` with a buggy `add()` function (returns `a - b` instead of `a + b`)
-2. Agent creates `test_calc.py` with tests that expect correct addition
+1. Agent detects empty workspace and automatically seeds it with:
+   - `calc.py` with a buggy `add()` function (returns `a - b` instead of `a + b`)
+   - `test_calc.py` with tests that expect correct addition
+2. Agent uses LLM to read the files and understand the problem
 3. Agent runs pytest - tests fail with assertion error
-4. Agent uses LLM to analyze the failure and fix the bug
-5. Agent runs pytest again - tests pass! ✓
+4. LLM analyzes the test failure and decides to fix the bug
+5. Agent writes the corrected `calc.py` file
+6. Agent runs pytest again - tests pass! ✓
 
 **Example output:**
 ```
@@ -152,9 +181,11 @@ Workspace: /path/to/demo_work
 **What happens:**
 
 1. **Iteration 1**: 
-   - Creates `calc.py` with a buggy `add()` function (returns `a - b` instead of `a + b`)
-   - Creates `test_calc.py` with correct test expectations
-   - Runs pytest → **Tests fail:**
+   - LLM analyzes the goal and workspace state
+   - LLM decides to create `calc.py` with an `add()` function
+   - LLM calls `write_file` to create `calc.py` (with a bug: returns `a - b` instead of `a + b`)
+   - LLM calls `write_file` to create `test_calc.py` with test expectations
+   - LLM calls `run_cmd` to run pytest → **Tests fail:**
      ```
      test_calc.py::test_add FAILED
      assert -1 == 5
@@ -162,9 +193,10 @@ Workspace: /path/to/demo_work
      ```
 
 2. **Iteration 2**:
-   - Detects the bug in `calc.py`
-   - Fixes it (changes `return a - b` to `return a + b`)
-   - Runs pytest → **Tests pass! ✓**
+   - LLM reads the test failure output
+   - LLM calls `read_file` to examine `calc.py`
+   - LLM identifies the bug and calls `write_file` to fix it (changes `return a - b` to `return a + b`)
+   - LLM calls `run_cmd` to run pytest again → **Tests pass! ✓**
 
 **Full log output** (saved to `.agent_log.txt`):
 
@@ -172,21 +204,27 @@ Workspace: /path/to/demo_work
 Agent run started
 Goal: Create a calculator with tests
 Workspace: /path/to/demo_work
+LLM: OpenAI (gpt-4o-mini)
 
 === Iteration 1 ===
-Action: create_calc_demo
+Calling LLM...
+LLM requested 2 tool call(s)
+Tool call 1/2: write_file({'path': 'calc.py', 'content': '...'})
+Tool call 2/2: write_file({'path': 'test_calc.py', 'content': '...'})
 Running tests...
 Tests failed:
 test_calc.py::test_add FAILED
-assert -1 == 5
+    assert -1 == 5
      +  where -1 = add(2, 3)
 
 === Iteration 2 ===
-Action: fix_calc_bug
+Calling LLM...
+LLM requested 2 tool call(s)
+Tool call 1/2: read_file({'path': 'calc.py'})
+Tool call 2/2: write_file({'path': 'calc.py', 'content': 'def add(a, b):\n    return a + b\n'})
 Running tests...
 
 ✓ Tests passed after 2 iteration(s)!
-Success summary: Goal 'Create a calculator with tests' achieved.
 ```
 
 **Generated files:**
@@ -244,15 +282,41 @@ micro_cursor/
   ├── __init__.py
   ├── __main__.py      # CLI entry point
   ├── cli.py           # Command-line interface
-  ├── agent.py         # ReAct loop implementation
+  ├── agent.py         # ReAct loop with LLM integration
+  ├── llm.py           # LLM provider abstractions (OpenAI, Gemini)
   ├── tools.py         # Workspace-constrained file operations
+  ├── tool_schema.py  # Tool definitions for LLM function calling
   └── workspace.py     # (Future) Workspace management
 
 tests/
-  ├── test_smoke.py    # Basic smoke tests
-  ├── test_tools.py    # Tools class tests
-  └── test_agent.py    # Agent loop tests
+  ├── test_smoke.py           # Basic smoke tests
+  ├── test_tools.py           # Tools class tests
+  ├── test_agent.py            # Agent loop tests
+  ├── test_agent_safety.py     # Dangerous command safety tests
+  ├── test_llm.py              # LLM client tests
+  ├── test_llm_integration.py  # Real API integration tests
+  └── test_llm_tool_calling.py  # LLM tool calling tests
 ```
+
+### Features
+
+- **LLM-Powered Planning**: Uses OpenAI or Gemini for intelligent action planning
+- **Tool Calling**: Native function calling support for structured tool execution
+- **Safety Features**: Automatic detection and confirmation prompts for dangerous commands
+- **Workspace Isolation**: All operations constrained to a workspace directory
+- **Test-Driven**: Automatically runs tests and iterates based on failures
+- **Cross-Platform**: Works on Linux, macOS, and Windows
+
+### Safety
+
+The agent includes built-in safety features to prevent accidental data loss:
+
+- **Dangerous Command Detection**: Automatically detects potentially harmful commands (e.g., `rm -rf`, `sudo`, `dd`, etc.)
+- **User Confirmation**: Prompts for confirmation before executing dangerous commands (in interactive mode)
+- **Non-Interactive Safety**: Automatically refuses dangerous commands when running in non-interactive mode (CI/CD)
+- **Workspace Constraints**: All file operations are automatically constrained to the workspace directory
+
+See `micro_cursor/tools.py` for the full list of dangerous patterns.
 
 ## CI/CD
 
