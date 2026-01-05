@@ -40,19 +40,6 @@ The agent uses a **ReAct (Reasoning + Acting) loop**:
          └─ Tests Fail? → Analyze error → Loop back
 ```
 
-**Current Implementation (Day 1):**
-- Simple hardcoded planning logic
-- Creates `calc.py` with a buggy function
-- Detects the bug from test failures
-- Applies a hardcoded fix
-- Verifies the fix with pytest
-
-**Future (Day 2+):**
-- LLM-powered planning and code generation
-- Dynamic error analysis
-- Multi-file codebase understanding
-- Context-aware fixes
-
 ## Quickstart
 
 ### Prerequisites
@@ -103,8 +90,6 @@ export GEMINI_MODEL=gemini-2.0-flash-exp  # Optional, defaults to gemini-2.0-fla
 ```
 
 Get your API key at: https://aistudio.google.com/apikey
-
-**Note:** The agent will only use the LLM when making planning decisions. If no API keys are set, the agent will use hardcoded logic (Day 1 mode).
 
 ### Run the Agent
 
@@ -268,40 +253,6 @@ tests/
   ├── test_tools.py    # Tools class tests
   └── test_agent.py    # Agent loop tests
 ```
-
-## Roadmap
-
-### Day 2+ Ideas
-
-- **LLM Integration**: Replace hardcoded planning with LLM-powered reasoning
-  - Use OpenAI/Anthropic APIs for planning and code generation
-  - Context-aware error analysis from test failures
-  - Multi-step planning for complex goals
-
-- **Enhanced Planning**:
-  - Parse test failures to understand what needs fixing
-  - Generate code patches instead of hardcoded fixes
-  - Support multiple files and dependencies
-
-- **Workspace Understanding**:
-  - Parse existing codebase structure
-  - Understand imports and dependencies
-  - Track file changes across iterations
-
-- **Better Error Handling**:
-  - Handle import errors, syntax errors, type errors
-  - Retry with different strategies
-  - Learn from past failures
-
-- **Extended Tooling**:
-  - Git operations (commit, branch, diff)
-  - Dependency management (pip, poetry)
-  - Multi-language support
-
-- **Observability**:
-  - Better logging and progress tracking
-  - Visualization of the agent's decision process
-  - Metrics and performance tracking
 
 ## CI/CD
 
