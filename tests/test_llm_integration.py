@@ -1,21 +1,18 @@
 """Integration tests for LLM clients (requires real API keys)."""
 
 import os
+
 import pytest
 
 from micro_cursor.llm import GeminiClient, OpenAIClient, get_llm_client
 
 
-@pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
-)
+@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
 def test_openai_client_real_api_call():
     """Test OpenAI client with real API call."""
     client = OpenAIClient()
 
-    messages = [
-        {"role": "user", "content": "Say 'Hello, this is a test' and nothing else."}
-    ]
+    messages = [{"role": "user", "content": "Say 'Hello, this is a test' and nothing else."}]
 
     response = client.complete(messages, temperature=0.1)
 
@@ -25,18 +22,12 @@ def test_openai_client_real_api_call():
     print(f"\nOpenAI Response: {response}")
 
 
-@pytest.mark.skipif(
-    not os.getenv("GEMINI_API_KEY"), reason="GEMINI_API_KEY not set"
-)
+@pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="GEMINI_API_KEY not set")
 def test_gemini_client_real_api_call():
     """Test Gemini client with real API call."""
-    import time
-
     client = GeminiClient()
 
-    messages = [
-        {"role": "user", "content": "Say 'Hello, this is a test' and nothing else."}
-    ]
+    messages = [{"role": "user", "content": "Say 'Hello, this is a test' and nothing else."}]
 
     try:
         response = client.complete(messages, temperature=0.1)
@@ -53,9 +44,7 @@ def test_gemini_client_real_api_call():
             raise
 
 
-@pytest.mark.skipif(
-    not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set"
-)
+@pytest.mark.skipif(not os.getenv("OPENAI_API_KEY"), reason="OPENAI_API_KEY not set")
 def test_get_llm_client_openai_integration():
     """Test get_llm_client factory with OpenAI (real API)."""
     with pytest.MonkeyPatch().context() as m:
@@ -72,9 +61,7 @@ def test_get_llm_client_openai_integration():
         print(f"\nFactory OpenAI Response: {response}")
 
 
-@pytest.mark.skipif(
-    not os.getenv("GEMINI_API_KEY"), reason="GEMINI_API_KEY not set"
-)
+@pytest.mark.skipif(not os.getenv("GEMINI_API_KEY"), reason="GEMINI_API_KEY not set")
 def test_get_llm_client_gemini_integration():
     """Test get_llm_client factory with Gemini (real API)."""
     with pytest.MonkeyPatch().context() as m:
@@ -96,4 +83,3 @@ def test_get_llm_client_gemini_integration():
                 pytest.skip(f"Gemini API quota exceeded (this is expected on free tier): {e}")
             else:
                 raise
-

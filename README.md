@@ -230,6 +230,26 @@ ruff format .
 ruff check . && ruff format .
 ```
 
+### Run CI Checks Locally
+
+Before pushing to GitHub, you can run the same checks that CI runs to catch errors early:
+
+```bash
+# Run all CI checks (linting, formatting, tests, CLI)
+./run_ci_checks.sh
+```
+
+This script runs:
+1. `ruff check .` - Linting
+2. `ruff format --check .` - Format check
+3. `pytest tests/ -v` - All tests
+4. `python -m micro_cursor --help` - CLI verification
+
+**Note:** Make sure you have the package installed in editable mode:
+```bash
+pip install -e ".[dev]"
+```
+
 ### Project Structure
 
 ```

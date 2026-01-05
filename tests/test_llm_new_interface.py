@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from micro_cursor.llm import GeminiLLM, LLM, LLMResult, OpenAILLM, ToolCall, get_llm
+from micro_cursor.llm import LLM, GeminiLLM, LLMResult, OpenAILLM, ToolCall, get_llm
 
 
 def test_llm_result_with_text():
@@ -193,4 +193,3 @@ def test_get_llm_invalid_provider():
     with patch.dict(os.environ, {"LLM_PROVIDER": "invalid"}):
         with pytest.raises(ValueError, match="Invalid LLM_PROVIDER"):
             get_llm()
-
